@@ -27,32 +27,13 @@ from .memory_usage import memory_usage
 
 from .methods._support import _spatial_dims
 
-def _ngff_image_scale_factors(ngff_image, min_length, out_chunks):
-    sizes = { d: s for d, s in zip(ngff_image.dims, ngff_image.data.shape) if d in _spatial_dims }
+def _ngff_image_scale_factors(scale, dims):
+    # forces isotropic scaling
+    dims = [ d for d in dims if d in _spatial_dims ]
     scale_factors = []
-    dims = ngff_image.dims
-    previous = { d: 1 for d in _spatial_dims.intersection(dims) }
-    sizes_array = np.array(list(sizes.values()))
-    double_chunks = np.array([2*out_chunks[d] for d in _spatial_dims.intersection(out_chunks)])
-
-    while (sizes_array > double_chunks).any():
-        max_size = np.array(list(sizes.values())).max()
-        to_skip = { d: sizes[d] <= max_size / 2 for d in previous.keys() }
-        scale_factor = {}
-        for dim in previous.keys():
-            if to_skip[dim] or sizes[dim] / 2 < out_chunks[dim]:
-                scale_factor[dim] = previous[dim]
-                continue
-            scale_factor[dim] = 2 * previous[dim]
-
-            sizes[dim] = int(sizes[dim] / 2)
-        sizes_array = np.array(list(sizes.values()))
-        previous = scale_factor
-        # There should be sufficient data in the result for statistics, etc.
-        if (np.prod(sizes_array) / min_length) < 2:
-            break
-        scale_factors.append(scale_factor)
-
+    for i in range(int(np.log2(scale)) + 1):
+        scale_factors.append({d: 2**i for d in dims})
+    
     return scale_factors
 
 def _large_image_serialization(image: NgffImage, progress: Optional[Union[NgffProgress, NgffProgressCallback]]):
@@ -241,7 +222,7 @@ def to_multiscales(
         `foo/s1`  
 
     scale_factors : int of minimum length, int per scale or dict of spatial dimension int's per scale
-        If a single integer, scale factors in spatial dimensions will be increased by a factor of two until this minimum length is reached.
+        If a single integer, scale factors in spatial dimensions will be increased by a factor of two until this factor is reached in all dimensions.
         If a list, integer scale factors to apply uniformly across all spatial dimensions or
         along individual spatial dimensions.
         Examples: 64 or [2, 4] or [{'x': 2, 'y': 4 }, {'x': 5, 'y': 10}]
@@ -291,7 +272,7 @@ def to_multiscales(
             ngff_image.data = dask.array.from_array(ngff_image.data)
 
     if isinstance(scale_factors, int):
-        scale_factors = _ngff_image_scale_factors(ngff_image, scale_factors, out_chunks)
+        scale_factors = _ngff_image_scale_factors(scale_factors, ngff_image.dims)
 
     # if cache is None and memory_usage(ngff_image) > config.memory_target or task_count(ngff_image) > config.task_target or cache:
     if cache is None and memory_usage(ngff_image) > config.memory_target or cache:
