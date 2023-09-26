@@ -34,12 +34,7 @@ def _ngff_image_scale_factors(ngff_image, min_length, out_chunks):
     previous = { d: 1 for d in _spatial_dims.intersection(dims) }
     sizes_array = np.array(list(sizes.values()))
     double_chunks = np.array([2*out_chunks[d] for d in _spatial_dims.intersection(out_chunks)])
-<<<<<<< HEAD
     while (sizes_array > double_chunks).all():
-=======
-
-    while (sizes_array > double_chunks).any():
->>>>>>> main
         max_size = np.array(list(sizes.values())).max()
         to_skip = { d: sizes[d] <= max_size / 2 for d in previous.keys() }
         scale_factor = {}
